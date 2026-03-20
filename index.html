@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🌱 SmartBin - AI Waste Management</title>
+
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.10.0/dist/tf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@0.8/dist/teachablemachine-image.min.js"></script>
+
+<style>
+:root {
+    --primary-green: #2e7d32;
+    --light-green: #c8e6c9;
+    --dark-green: #1b5e20;
+    --accent-green: #43a047;
+}
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    margin: 0;
+    background: linear-gradient(rgba(255,255,255,0.9), rgba(255,255,255,0.9)),
+    url("https://images.unsplash.com/photo-1501004318641-b39e6451bec6");
+    background-size: cover;
+    text-align: center;
+}
+
+header {
+    background: var(--primary-green);
+    color: white;
+    padding: 20px;
+    font-size: 1.5rem;
+}
+
+.dashboard-container {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 20px;
+    padding: 20px;
+}
+
+.card {
+    background: white;
+    flex: 1 1 320px;
+    max-width: 450px;
+    padding: 20px;
+    border-radius: 20px;
+}
+
+.bar { height: 30px; background: var(--light-green); border-radius: 15px; }
+.fill { height: 100%; width: 0%; background: var(--primary-green); color: white; }
+
+button { background: var(--accent-green); color: white; padding: 10px; border: none; border-radius: 20px; }
+
+img { max-width: 250px; display: none; }
+
+/* BINS */
+.bins {
+    display: flex;
+    justify-content: space-around;
+    flex-wrap: wrap;
+}
+
+.bin {
+    width: 70px;
+    height: 90px;
+    border-radius: 10px;
+    color: white;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    opacity: 0.6;
+}
+
+#blueBin { background: #2196f3; }
+#greenBin { background: #4caf50; }
+#yellowBin { background: #fbc02d; color: black; }
+#blackBin { background: #424242; }
+
+.active-bin {
+    transform: scale(1.2);
+    opacity: 1;
+}
+footer {
+    background: var(--dark-green);
+    color: white;
+    padding: 20px;
+    margin-top: 40px;
+    text-align: center;
+    border-top-left-radius: 20px;
+    border-top-right-radius: 20px;
+}
+
+</style>
+</head>
+
+<body>
+<header>🌱 SmartBin AI Dashboard</header>
+
+<div class="dashboard-container">
+
+<div class="card">
+<h2>📊 Bin Status</h2>
+<div class="bar"><div id="binFill" class="fill">0%</div></div>
+<h3 id="status">Connecting...</h3>
+</div>
+
+<div class="card">
+<h2>📷 Camera</h2>
+<div id="webcam-container"></div>
+<img id="capturedPhoto">
+<button onclick="startCamera()">Start</button>
+<button onclick="captureImage()">Capture</button>
+<button onclick="detectFromCamera()">Detect</button>
+<h3 id="cameraResult"></h3>
+<p id="cameraSuggestion"></p>
+</div>
+
+<div class="card">
+<h2>Upload</h2>
+<input type="file" id="uploadInput">
+<img id="preview">
+<button onclick="detectFromUpload()">Analyze</button>
+<h3 id="uploadResult"></h3>
+<p id="uploadSuggestion"></p>
+</div>
+
+<!-- BINS -->
+<div class="card">
+<h2>🗑 Waste Segregation</h2>
+<div class="bins">
+<div id="blueBin" class="bin">♻️<br>Blue</div>
+<div id="greenBin" class="bin">🌿<br>Green</div>
+<div id="yellowBin" class="bin">📄<br>Yellow</div>
+<div id="blackBin" class="bin">🗑️<br>Black</div>
+</div>
+</div>
+
+</div>
+
+<script>
+const MODEL_URL = "https://teachablemachine.withgoogle.com/models/I_8PXzQya/";
+let model, webcam;
+
+async function loadModel(){
+if(!model) model = await tmImage.load(MODEL_URL+"model.json", MODEL_URL+"metadata.json");
+}
+
+async function startCamera(){
+webcam = new tmImage.Webcam(300,300,true);
+await webcam.setup(); await webcam.play();
+document.getElementById("webcam-container").appendChild(webcam.canvas);
+loop();
+}
+
+function loop(){ webcam.update(); requestAnimationFrame(loop); }
+
+function captureImage(){
+const img = document.getElementById("capturedPhoto");
+img.src = webcam.canvas.toDataURL();
+img.style.display = "block";
+}
+
+async function detectFromCamera(){
+await loadModel();
+const pred = await model.predict(document.getElementById("capturedPhoto"));
+showResult(pred, "camera");
+}
+
+const uploadInput = document.getElementById("uploadInput");
+uploadInput.onchange = e=>{
+const reader = new FileReader();
+reader.onload = ev=>{
+document.getElementById("preview").src = ev.target.result;
+document.getElementById("preview").style.display="block";
+};
+reader.readAsDataURL(e.target.files[0]);
+};
+
+async function detectFromUpload(){
+await loadModel();
+const pred = await model.predict(document.getElementById("preview"));
+showResult(pred, "upload");
+}
+
+function showResult(pred,type){
+let max = pred[0];
+pred.forEach(p=>{ if(p.probability>max.probability) max=p; });
+
+const waste = max.className.toLowerCase();
+let suggestion="";
+
+["blueBin","greenBin","yellowBin","blackBin"].forEach(id=>{
+document.getElementById(id).classList.remove("active-bin");
+});
+
+if(waste.includes("plastic")){
+suggestion="Blue Bin";
+document.getElementById("blueBin").classList.add("active-bin");
+}
+else if(waste.includes("organic")){
+suggestion="Green Bin";
+document.getElementById("greenBin").classList.add("active-bin");
+}
+else if(waste.includes("paper")){
+suggestion="Yellow Bin";
+document.getElementById("yellowBin").classList.add("active-bin");
+}
+else{
+suggestion="Black Bin";
+document.getElementById("blackBin").classList.add("active-bin");
+}
+
+if(type=="camera"){
+document.getElementById("cameraResult").innerText=max.className;
+document.getElementById("cameraSuggestion").innerText=suggestion;
+}else{
+document.getElementById("uploadResult").innerText=max.className;
+document.getElementById("uploadSuggestion").innerText=suggestion;
+}
+}
+</script>
+
+<footer>
+    ♻ SmartBin Project | Divyanshi Kumari & Shreyashi Pandey
+</footer>
+
+</body>
+</html>
