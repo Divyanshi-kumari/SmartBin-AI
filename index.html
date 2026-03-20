@@ -56,12 +56,7 @@ button { background: var(--accent-green); color: white; padding: 10px; border: n
 img { max-width: 250px; display: none; }
 
 /* BINS */
-.bins {
-    display: flex;
-    justify-content: space-around;
-    flex-wrap: wrap;
-}
-
+.bins { display: flex; justify-content: space-around; flex-wrap: wrap; }
 .bin {
     width: 70px;
     height: 90px;
@@ -73,26 +68,18 @@ img { max-width: 250px; display: none; }
     align-items: center;
     opacity: 0.6;
 }
-
 #blueBin { background: #2196f3; }
 #greenBin { background: #4caf50; }
 #yellowBin { background: #fbc02d; color: black; }
 #blackBin { background: #424242; }
+.active-bin { transform: scale(1.2); opacity: 1; }
 
-.active-bin {
-    transform: scale(1.2);
-    opacity: 1;
-}
 footer {
     background: var(--dark-green);
     color: white;
     padding: 20px;
     margin-top: 40px;
-    text-align: center;
-    border-top-left-radius: 20px;
-    border-top-right-radius: 20px;
 }
-
 </style>
 </head>
 
@@ -104,7 +91,7 @@ footer {
 <div class="card">
 <h2>📊 Bin Status</h2>
 <div class="bar"><div id="binFill" class="fill">0%</div></div>
-<h3 id="status">Connecting...</h3>
+<h3 id="status">Connecting to Firebase...</h3>
 </div>
 
 <div class="card">
@@ -127,7 +114,6 @@ footer {
 <p id="uploadSuggestion"></p>
 </div>
 
-<!-- BINS -->
 <div class="card">
 <h2>🗑 Waste Segregation</h2>
 <div class="bins">
@@ -140,7 +126,38 @@ footer {
 
 </div>
 
-<script>
+<footer>
+♻ SmartBin Project | Divyanshi Kumari & Shreyashi Pandey
+</footer>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+
+const firebaseConfig = {
+    apiKey: "AIzaSyAxipOXlGASbtOeqvI8C2Xxjgj6i0DZmJo",
+    databaseURL: "https://ai-powered-smartbin-default-rtdb.asia-southeast1.firebasedatabase.app"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
+
+onValue(ref(db, "SmartBin/bin1"), (snapshot) => {
+    if (snapshot.exists()) {
+        const val = snapshot.val();
+        const fill = document.getElementById("binFill");
+        fill.style.width = val + "%";
+        fill.innerText = val + "%";
+
+        let statusText = "";
+        if (val > 80) statusText = "🔴 Bin Full - Needs Pickup";
+        else if (val > 40) statusText = "🟡 Filling Up";
+        else statusText = "🟢 Empty";
+
+        document.getElementById("status").innerHTML = statusText;
+    }
+});
+
 const MODEL_URL = "https://teachablemachine.withgoogle.com/models/I_8PXzQya/";
 let model, webcam;
 
@@ -148,7 +165,7 @@ async function loadModel(){
 if(!model) model = await tmImage.load(MODEL_URL+"model.json", MODEL_URL+"metadata.json");
 }
 
-async function startCamera(){
+window.startCamera = async function(){
 webcam = new tmImage.Webcam(300,300,true);
 await webcam.setup(); await webcam.play();
 document.getElementById("webcam-container").appendChild(webcam.canvas);
@@ -157,13 +174,13 @@ loop();
 
 function loop(){ webcam.update(); requestAnimationFrame(loop); }
 
-function captureImage(){
+window.captureImage = function(){
 const img = document.getElementById("capturedPhoto");
 img.src = webcam.canvas.toDataURL();
 img.style.display = "block";
 }
 
-async function detectFromCamera(){
+window.detectFromCamera = async function(){
 await loadModel();
 const pred = await model.predict(document.getElementById("capturedPhoto"));
 showResult(pred, "camera");
@@ -179,7 +196,7 @@ document.getElementById("preview").style.display="block";
 reader.readAsDataURL(e.target.files[0]);
 };
 
-async function detectFromUpload(){
+window.detectFromUpload = async function(){
 await loadModel();
 const pred = await model.predict(document.getElementById("preview"));
 showResult(pred, "upload");
@@ -200,7 +217,7 @@ if(waste.includes("plastic")){
 suggestion="Blue Bin";
 document.getElementById("blueBin").classList.add("active-bin");
 }
-else if(waste.includes("organic")){
+else if(waste.includes("organic") || waste.includes("food")){
 suggestion="Green Bin";
 document.getElementById("greenBin").classList.add("active-bin");
 }
@@ -222,10 +239,6 @@ document.getElementById("uploadSuggestion").innerText=suggestion;
 }
 }
 </script>
-
-<footer>
-    ♻ SmartBin Project | Divyanshi Kumari & Shreyashi Pandey
-</footer>
 
 </body>
 </html>
